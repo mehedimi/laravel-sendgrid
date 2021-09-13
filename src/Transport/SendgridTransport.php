@@ -4,7 +4,10 @@ namespace Mehedi\Sendgrid\Transport;
 
 use GuzzleHttp\Client;
 use Illuminate\Mail\Transport\Transport;
+use Mehedi\Sendgrid\PayloadExtractor;
+use Swift_Attachment;
 use Swift_Mime_SimpleMessage;
+use Swift_MimePart;
 
 class SendgridTransport extends Transport
 {
@@ -43,7 +46,7 @@ class SendgridTransport extends Transport
 
     public function send(Swift_Mime_SimpleMessage $message, &$failedRecipients = null)
     {
-        $payload = $this->getPayload($message);
+        $payload = new PayloadExtractor($message);
     }
 
     /**
@@ -62,7 +65,8 @@ class SendgridTransport extends Transport
             ->extractBcc($message)
             ->extractBcc($message)
             ->extractReplyTo($message)
-            ->extractBody($message);
+            ->extractBody($message)
+            ->extractAttachments($message);
 
         return $this->payload;
     }
@@ -75,12 +79,7 @@ class SendgridTransport extends Transport
      */
     protected function extractFrom(Swift_Mime_SimpleMessage &$message)
     {
-        $from = $message->getFrom();
-
-        $this->payload['from'] = [
-            'email' => key($from),
-            'name' => $from[key($from)]
-        ];
+        $this->payload['from'] = $this->mapSingleAddress($message->getFrom());
 
         return $this;
     }
@@ -93,14 +92,7 @@ class SendgridTransport extends Transport
      */
     protected function extractTo(Swift_Mime_SimpleMessage &$message)
     {
-        $to = $message->getTo();
-
-        $this->payload['to'] = array_map(function ($email) use ($to) {
-            return [
-                'email' => $email,
-                'name' => $to[$email]
-            ];
-        }, array_keys($to));
+        $this->payload['personalizations']['to'] = $this->mapMultipleAddress($message->getTo());
 
         return $this;
     }
@@ -113,14 +105,7 @@ class SendgridTransport extends Transport
      */
     protected function extractCc(Swift_Mime_SimpleMessage &$message)
     {
-        $cc = $message->getCc();
-
-        $this->payload['cc'] = array_map(function ($email) use ($cc) {
-            return [
-                'email' => $email,
-                'name' => $cc[$email]
-            ];
-        }, array_keys($cc));
+        $this->payload['personalizations']['cc'] = $this->mapMultipleAddress($message->getCc());
 
         return $this;
     }
@@ -133,14 +118,7 @@ class SendgridTransport extends Transport
      */
     protected function extractBcc(Swift_Mime_SimpleMessage &$message)
     {
-        $bcc = $message->getBcc();
-
-        $this->payload['bcc'] = array_map(function ($email) use ($bcc) {
-            return [
-                'email' => $email,
-                'name' => $bcc[$email]
-            ];
-        }, array_keys($bcc));
+        $this->payload['personalizations']['bcc'] = $this->mapMultipleAddress($message->getBcc());
 
         return $this;
     }
@@ -153,12 +131,7 @@ class SendgridTransport extends Transport
      */
     protected function extractReplyTo(Swift_Mime_SimpleMessage &$message)
     {
-        $replyTo = $message->getReplyTo();
-
-        $this->payload['reply_to'] = [
-            'email' => key($replyTo),
-            'name' => $replyTo[key($replyTo)]
-        ];
+        $this->payload['reply_to'] = $this->mapSingleAddress($message->getReplyTo());
 
         return $this;
     }
@@ -167,11 +140,126 @@ class SendgridTransport extends Transport
      * Extract email body
      *
      * @param Swift_Mime_SimpleMessage $message
+     * @return SendgridTransport
      */
     protected function extractBody(Swift_Mime_SimpleMessage &$message)
     {
-        $body = $message->getBody();
+        $this->payload['content'] = $this->getMessagePart($message);
 
-        dd($body);
+        return $this;
+    }
+
+    /**
+     * Extract attachment files
+     *
+     * @param Swift_Mime_SimpleMessage $message
+     * @return $this
+     */
+    protected function extractAttachments(Swift_Mime_SimpleMessage &$message)
+    {
+        $attachments = [];
+
+        foreach ($message->getChildren() as $child) {
+            if (!$child instanceof Swift_Attachment) {
+                continue;
+            }
+
+            $attachments[] = [
+                'content'     => base64_encode($child->getBody()),
+                'filename'    => $child->getFilename(),
+                'type'        => $child->getContentType(),
+                'disposition' => $child->getDisposition(),
+                'content_id'  => $child->getId(),
+            ];
+        }
+
+        if (! empty($attachments)) {
+            $this->payload['attachments'] = $attachments;
+        }
+
+        return $this;
+    }
+
+    /**
+     * Get message parts
+     *
+     * @param Swift_Mime_SimpleMessage $message
+     * @return array|null
+     */
+    protected function getMessagePart(Swift_Mime_SimpleMessage &$message)
+    {
+        /**
+         * Valid mime types
+         */
+        $validMimes = ['text/plan', 'text/html'];
+
+        $contents = [];
+
+        foreach ($message->getChildren() as $part) {
+            if ($part instanceof Swift_MimePart && in_array($part->getContentType(), $validMimes)) {
+                $contents[] = [
+                    'type' => $part->getContentType(),
+                    'value' => $part->getBody()
+                ];
+            }
+        }
+
+
+        if (is_null($message->getBody()) && empty($contents)) {
+            return null;
+        }
+
+        $contentType = $message->getContentType();
+
+        $hasExists = array_filter($contents, function ($part) use ($contentType) {
+            return $contentType === $part['type'];
+        });
+
+        if (! $hasExists && in_array($contentType, $validMimes)) {
+            $contents[] = [
+                'type' => $contentType,
+                'value' => $message->getBody()
+            ];
+        }
+
+        usort($contents, function ($first, $second) {
+            if ($first['type'] === 'text/plan') {
+                return -1;
+            }
+
+            return 1;
+        });
+
+        return $contents;
+    }
+
+    /**
+     * Map single address
+     *
+     * @param array $address
+     * @return array
+     */
+    protected function mapSingleAddress(array $address)
+    {
+        return [
+            'email' => key($address),
+            'name' => $address[key($address)]
+        ];
+    }
+
+    /**
+     * Map multiple addresses
+     *
+     * @param array $addresses
+     * @return array|array[]
+     */
+    protected function mapMultipleAddress(array $addresses)
+    {
+        return array_map(function ($email) use ($addresses) {
+            return [
+                'email' => $email,
+                'name' => $addresses[$email]
+            ];
+        }, array_keys($addresses));
     }
 }
