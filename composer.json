@@ -31,12 +31,5 @@
         "illuminate/config": "^8.60",
         "symfony/var-dumper": "^5.3",
         "mockery/mockery": "^1.4"
-    },
-    "extra": {
-        "laravel": {
-            "providers": [
-                "Mehedi\\Sendgrid\\LaravelSendgridServiceProvider"
-            ]
-        }
     }
 }
