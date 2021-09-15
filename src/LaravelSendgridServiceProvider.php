@@ -18,7 +18,11 @@ class LaravelSendgridServiceProvider extends ServiceProvider
                     'timeout'  => SendgridTransport::TIMEOUT,
                 ]);
 
-                return new SendgridTransport($client, $this->app['config']['services.sendgrid']);
+                return new SendgridTransport(
+                    $client,
+                    $this->app['config']['services.sendgrid'],
+                    $this->app['config']['mail.mailers.sendgrid']
+                );
             });
         });
     }
