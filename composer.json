@@ -2,7 +2,7 @@
     "name": "mehedimi/laravel-sendgrid",
     "version": "0.0.1",
     "description": "A package for supporting sendgrid as an email sending driver",
-    "type": "metapackage",
+    "type": "package",
     "license": "MIT",
     "keywords": ["laravel-mail", "laravel-sendgrid", "sendgrid mailable"],
     "authors": [
