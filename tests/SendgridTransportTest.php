@@ -44,9 +44,9 @@ class SendgridTransportTest extends TestCase
         $payload = SendGridPayloadExtractor::extract($message)->toArray();
 
         $this->assertEquals(['email' => 'from@example.com', 'name' => 'From Name'], $payload['from']);
-        $this->assertEquals([['email' => 'to@example.com', 'name' => 'To name']], $payload['personalizations']['to']);
-        $this->assertEquals([['email' => 'cc@example.com', 'name' => 'CC name']], $payload['personalizations']['cc']);
-        $this->assertEquals([['email' => 'bcc1@example.com', 'name' => 'BCC Name']], $payload['personalizations']['bcc']);
+        $this->assertEquals([['email' => 'to@example.com', 'name' => 'To name']], $payload['personalizations'][0]['to']);
+        $this->assertEquals([['email' => 'cc@example.com', 'name' => 'CC name']], $payload['personalizations'][1]['cc']);
+        $this->assertEquals([['email' => 'bcc1@example.com', 'name' => 'BCC Name']], $payload['personalizations'][2]['bcc']);
         $this->assertEquals(['email' => 'reply@example.com', 'name' => ''], $payload['reply_to']);
         $this->assertEquals('Subject', $payload['subject']);
 
@@ -82,12 +82,16 @@ class SendgridTransportTest extends TestCase
                 RequestOptions::JSON => [
                     'subject' => 'Foo subject',
                     'personalizations' => [
-                        'to' => [
-                            ['name' => null, 'email' => 'me@example.com']
+                        [
+                            'to' => [
+                                ['name' => null, 'email' => 'me@example.com']
+                            ]
                         ],
-                        'bcc' => [
-                            ['name' => null, 'email' => 'you@example.com']
-                        ],
+                        [
+                            'bcc' => [
+                                ['name' => null, 'email' => 'you@example.com']
+                            ]
+                        ]
                     ],
                     'reply_to' => [
                         'email' => 'reply@example.com', 'name' => null
@@ -132,9 +136,11 @@ class SendgridTransportTest extends TestCase
                 RequestOptions::JSON => [
                     'subject' => 'subject',
                     'personalizations' => [
-                        'to' => [
-                            ['name' => null, 'email' => 'to@example.com']
-                        ],
+                        [
+                            'to' => [
+                                ['name' => null, 'email' => 'to@example.com']
+                            ]
+                        ]
                     ],
                     'from' => [
                         'name' => null,

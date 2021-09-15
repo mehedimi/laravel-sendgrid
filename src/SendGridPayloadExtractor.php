@@ -22,7 +22,7 @@ class SendGridPayloadExtractor implements Arrayable
      *
      * @var array $payload
      */
-    protected $payload = [];
+    protected $payload = ['personalizations' => []];
 
     /**
      * SendGrid reserved headers
@@ -88,7 +88,10 @@ class SendGridPayloadExtractor implements Arrayable
      */
     protected function to()
     {
-        $this->payload['personalizations']['to'] = $this->mapMultipleAddress($this->message->getTo());
+        array_push(
+            $this->payload['personalizations'],
+            ['to' => $this->mapMultipleAddress($this->message->getTo())]
+        );
 
         return $this;
     }
@@ -101,7 +104,10 @@ class SendGridPayloadExtractor implements Arrayable
     protected function cc()
     {
         if (is_array($this->message->getCc())) {
-            $this->payload['personalizations']['cc'] = $this->mapMultipleAddress($this->message->getCc());
+            array_push(
+                $this->payload['personalizations'],
+                ['cc' => $this->mapMultipleAddress($this->message->getCc())]
+            );
         }
 
         return $this;
@@ -115,7 +121,10 @@ class SendGridPayloadExtractor implements Arrayable
     protected function bcc()
     {
         if (! is_null($this->message->getBcc())) {
-            $this->payload['personalizations']['bcc'] = $this->mapMultipleAddress($this->message->getBcc());
+            array_push(
+                $this->payload['personalizations'],
+                ['bcc' => $this->mapMultipleAddress($this->message->getBcc())]
+            );
         }
 
         return $this;
